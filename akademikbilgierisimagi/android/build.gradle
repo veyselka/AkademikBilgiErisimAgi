@@ -13,6 +13,7 @@ buildscript {
         
         // Firebase için gerekli olan Google Services classpath:
         classpath 'com.google.gms:google-services:4.3.15'  // Firebase hizmetleri
+        
     }
 }
 
