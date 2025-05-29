@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "510498498090",
+    "firebase_url": "https://akademikbilgierisimagi-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "akademikbilgierisimagi",
     "storage_bucket": "akademikbilgierisimagi.firebasestorage.app"
   },
@@ -12,7 +13,12 @@
           "package_name": "com.example.akademikbilgierisimagi"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "510498498090-f70aun4vcqkmnd5t5jldgeg1eivf0e9u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDiBq-S020F1vc2w69YrMyOE6w2sKO2idI"
@@ -20,7 +26,55 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510498498090-f70aun4vcqkmnd5t5jldgeg1eivf0e9u.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "510498498090-ulp073ngo4g4sp1emq7vt9u1ogi47rmt.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.akademikbilgierisimagi"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510498498090:android:c3cbd60214cd37a5150553",
+        "android_client_info": {
+          "package_name": "com.ornek.akademikbilgierisimagi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510498498090-f70aun4vcqkmnd5t5jldgeg1eivf0e9u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiBq-S020F1vc2w69YrMyOE6w2sKO2idI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510498498090-f70aun4vcqkmnd5t5jldgeg1eivf0e9u.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "510498498090-ulp073ngo4g4sp1emq7vt9u1ogi47rmt.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.akademikbilgierisimagi"
+              }
+            }
+          ]
         }
       }
     }

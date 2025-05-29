@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "akademikbilgierisimagi",
+  "private_key_id": "ab62f142d28175c84a50c6fe1be7ae6569ab94a6",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCnibaHdtrNR0zE\nIiJgBf1WmE6hl1V5fVYg/1TieFKccRuviscMtgqBainFsCE9j+45kWszvlEOQUKb\n9gKsP1u7xiS8yQ01CL9zNZ5dLZYjhhoYKQEWc6CVOUKxqDllGQmT7QItktKFsUtk\nzHarqWGHu+pfwY5fQeKuWX23RTeR0RUAlj/3Mi5un/QU8bIyr57ABHQFCFcvp/L+\nCF9tD0qnpZxeVhIcdXsmfmRxPefKVnegFwTwSihGbnPS9g6HEHXyLch+u/rtPE2y\nYD7JPDLJwzjjedsUsBuiiZV0gvZdYlr94ZSocUSIsaIKQ2Cn9WBU3Q1moWVDc3p7\nMQ8kOnuFAgMBAAECggEAOLdMDWvVAm1CtZsAnBUrACerZtS+YNRnVeBaMhidjsxT\nnQeT/t+ZitoPrhbECf0xnld2PRwOgI7jJ70OhpUkTtrzEN3XFL8TYMMkC1MlYn1B\nVDB9Z8ZY9GtgAph6ZZkmPuebNyZfEldEuKjm+5HprHOXEjeKJQE+5drxzhsmhrv+\n7vEHYJ9jiyhWisI9oUJSEa73NRN2gwEPejzwiBeVqzsNohK+8HAlrvO+k1fu8HhG\nw62XpOvrud68QeT8wLowqtTlMFjprFx0RCvQtXuIst3gMNWYdO6yeWLHs+O/Yvcg\nUqOuNvUxrxURKQ+1kHQXt37+IpFEUd2QVKMvnLqZOQKBgQDR5rR+R3sugAPtVIJM\nSiQM46+h7kKsH507tFzRJtZ+mEa+qFkxkmMrUVwZ/HrRy6zHdAtttKgb6PfW64le\nZeR9cWxCUwq+waa4WjBrwHwGWnQNPEVvylofO/nk+UCpRNKSrr7WJR6stq1ZuCLi\nH27T0NNqzhKoTIhmFNFWUh4NYwKBgQDMVTcAalWt9D3lcCObUNVhNoeglkSrSb2n\nfNn6oofu2gelUbv4nmPvm/ov+TjBYziX9tL9OuZIBeyzGO9MwroulcjiuHzZPrDs\nURneDOD2+3/IaURT6Bqu7ZjWsLaNLJw02Iow+Hiv0WKNQI4JV+HF0n5L97am9V+Y\np8gNkA979wKBgFP9bNva3n+M2gVte3XrdOFzeiPhouwc+l2ZnkpSsCGX7Tb9RjN/\n0A7VT3VWgg7Q4SIuXSRY1avVXNazCRSs0PEhIaCoefQ6qOu7qwRy0S35o9Zn96Dz\n53v4E9Z7plQVJe1r3xDxaYTS1CrCc7LnwQEg3nguXWjatvmh+uH/mebhAoGAfb3q\n7PyC4VuuQ2Uw5EFoLjyqVe5jL61fYpR4Z75hPGE710ZnEGYYRbmMyrzpakiu6QVh\nbagzUhsjQEuV53zlqglO6AZz/hSQN7zo2DbAsfyu9BujiqcI1KEuLt/sVxAeyH6A\n/AXL7xZBOX+CaMmGDICua/1yj2fsfjqx53bBsJ0CgYBDO/XvSOaey8eBueDZFvBA\nL+HMW/pkwSwKsXYjbOVZvq0oX1lDIzW/jOd69xoiXm9qb+o3Y7pzX47kHlJVdrH4\nEGbrQSzGNoHY+Sm3WKPDdsOk2jBPPSDkDXC+EDFLpAu28z1oYqH+MMFcue0rmGrr\ndOwCpag3KI56HRioEt8D1g==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@akademikbilgierisimagi.iam.gserviceaccount.com",
+  "client_id": "105945254914350576748",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40akademikbilgierisimagi.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
