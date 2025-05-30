@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'home_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -37,7 +38,8 @@ class _RegisterPageState extends State<RegisterPage> {
       final data = Map<String, dynamic>.from(snapshot.value as Map);
       setState(() {
         universityMap = {
-          for (var entry in data.entries) entry.value['name']: entry.key,
+          for (var entry in data.entries)
+            entry.key: (entry.value as Map)['name'],
         };
       });
     }
@@ -51,7 +53,8 @@ class _RegisterPageState extends State<RegisterPage> {
       final data = Map<String, dynamic>.from(snapshot.value as Map);
       setState(() {
         departmentMap = {
-          for (var entry in data.entries) entry.value['name']: entry.key,
+          for (var entry in data.entries)
+            (entry.value as Map)['name']: entry.key,
         };
         selectedDepartmentId = null;
       });
@@ -61,8 +64,14 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> registerUser() async {
     setState(() => errorText = null);
 
+    if (selectedUniversityId == null || selectedDepartmentId == null) {
+      setState(() {
+        errorText = "Lütfen üniversite ve bölüm seçiniz.";
+      });
+      return;
+    }
+
     try {
-      // Firebase Auth ile kayıt
       UserCredential userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
@@ -71,13 +80,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
       final uid = userCredential.user!.uid;
 
-      // Realtime Database'e kayıt
       await FirebaseDatabase.instance.ref('kullanicilar/$uid').set({
         'isim': nameController.text.trim(),
         'email': emailController.text.trim(),
-        'sifre': passwordController.text.trim(),
-        'universiteId': selectedUniversityId,
-        'bolumId': selectedDepartmentId,
+        'universite': selectedUniversityId,
+        'bolum': selectedDepartmentId,
         'avatarUrl': '',
         'bio': '',
         'ayarlar': {
@@ -90,9 +97,16 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Kayıt başarılı")),
       );
+
+      Navigator.pop(context); // login sayfasına dön
     } on FirebaseAuthException catch (e) {
       setState(() => errorText = e.message);
     }
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
   }
 
   @override
@@ -139,27 +153,33 @@ class _RegisterPageState extends State<RegisterPage> {
                       setState(() {
                         selectedUniversityId = value;
                         departmentMap.clear();
+                        selectedDepartmentId = null;
                       });
                       if (value != null) fetchDepartments(value);
                     },
                     items: universityMap.entries
                         .map((e) => DropdownMenuItem(
-                            value: e.value, child: Text(e.key)))
+                            value: e.key, child: Text(e.value)))
                         .toList(),
                   ),
+
                   const SizedBox(height: 10),
 
                   // Bölüm seçimi
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(labelText: 'Bölüm'),
                     value: selectedDepartmentId,
-                    onChanged: (value) =>
-                        setState(() => selectedDepartmentId = value),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedDepartmentId = value;
+                      });
+                    },
                     items: departmentMap.entries
                         .map((e) => DropdownMenuItem(
-                            value: e.value, child: Text(e.key)))
+                            value: e.key, child: Text(e.value)))
                         .toList(),
                   ),
+
                   const SizedBox(height: 10),
                   TextFormField(
                       controller: passwordController,
