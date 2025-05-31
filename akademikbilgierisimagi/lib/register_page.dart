@@ -21,8 +21,9 @@ class _RegisterPageState extends State<RegisterPage> {
   String? selectedUniversityId;
   String? selectedDepartmentId;
 
-  Map<String, String> universityMap = {}; // "Üniversite Adı": "100"
-  Map<String, String> departmentMap = {}; // "Bölüm Adı": "405"
+  Map<String, String> universityMap = {}; // { "100": "İstanbul Üniversitesi" }
+  Map<String, String> departmentMap =
+      {}; // { "400": "Bilgisayar Mühendisliği" }
 
   String? errorText;
 
@@ -33,31 +34,64 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> fetchUniversities() async {
-    final snapshot = await FirebaseDatabase.instance.ref('universiteler').get();
-    if (snapshot.exists) {
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
-      setState(() {
-        universityMap = {
-          for (var entry in data.entries)
-            entry.key: (entry.value as Map)['name'],
-        };
-      });
+    try {
+      final snapshot =
+          await FirebaseDatabase.instance.ref('universiteler').get();
+      if (snapshot.exists) {
+        final data = snapshot.value;
+        if (data is Map) {
+          Map<String, String> fetchedUniversities = {};
+          data.forEach((key, val) {
+            if (val is Map && val['name'] != null) {
+              fetchedUniversities[key] = val['name'].toString();
+            }
+          });
+
+          setState(() {
+            universityMap = fetchedUniversities;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('fetchUniversities hatası: $e');
     }
   }
 
   Future<void> fetchDepartments(String universityId) async {
-    final snapshot = await FirebaseDatabase.instance
-        .ref('universiteler/$universityId/bolumler')
-        .get();
-    if (snapshot.exists) {
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
-      setState(() {
-        departmentMap = {
-          for (var entry in data.entries)
-            (entry.value as Map)['name']: entry.key,
-        };
-        selectedDepartmentId = null;
-      });
+    try {
+      final snapshot = await FirebaseDatabase.instance
+          .ref('universiteler/$universityId/bolumler')
+          .get();
+
+      if (snapshot.exists) {
+        final data = snapshot.value;
+
+        if (data is Map) {
+          Map<String, String> fetchedDepartments = {};
+          data.forEach((key, val) {
+            if (val is Map && val['name'] != null) {
+              fetchedDepartments[key] = val['name'].toString();
+            }
+          });
+
+          setState(() {
+            departmentMap = fetchedDepartments;
+            selectedDepartmentId = null;
+          });
+        } else {
+          setState(() {
+            departmentMap = {};
+            selectedDepartmentId = null;
+          });
+        }
+      } else {
+        setState(() {
+          departmentMap = {};
+          selectedDepartmentId = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('fetchDepartments hatası: $e');
     }
   }
 
@@ -67,6 +101,13 @@ class _RegisterPageState extends State<RegisterPage> {
     if (selectedUniversityId == null || selectedDepartmentId == null) {
       setState(() {
         errorText = "Lütfen üniversite ve bölüm seçiniz.";
+      });
+      return;
+    }
+
+    if (passwordController.text != confirmPasswordController.text) {
+      setState(() {
+        errorText = "Şifreler eşleşmiyor.";
       });
       return;
     }
@@ -94,19 +135,19 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       });
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Kayıt başarılı")),
       );
 
-      Navigator.pop(context); // login sayfasına dön
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+      );
     } on FirebaseAuthException catch (e) {
       setState(() => errorText = e.message);
     }
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomePage()),
-    );
   }
 
   @override
@@ -135,18 +176,33 @@ class _RegisterPageState extends State<RegisterPage> {
                           TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 20),
                   TextFormField(
-                      controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Ad Soyad')),
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Ad Soyad'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Ad Soyad giriniz';
+                      }
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: emailController,
                     decoration: const InputDecoration(labelText: 'E-posta'),
                     keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'E-posta giriniz';
+                      }
+                      if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                        return 'Geçerli bir e-posta giriniz';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 10),
-
-                  // Üniversite seçimi
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Üniversite'),
                     value: selectedUniversityId,
                     onChanged: (value) {
@@ -159,68 +215,83 @@ class _RegisterPageState extends State<RegisterPage> {
                     },
                     items: universityMap.entries
                         .map((e) => DropdownMenuItem(
-                            value: e.key, child: Text(e.value)))
+                              value: e.key, // üniversiteId
+                              child: Text(e.value), // üniversiteAdı
+                            ))
                         .toList(),
+                    validator: (value) =>
+                        value == null ? 'Üniversite seçiniz' : null,
                   ),
-
                   const SizedBox(height: 10),
-
-                  // Bölüm seçimi
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Bölüm'),
                     value: selectedDepartmentId,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedDepartmentId = value;
-                      });
-                    },
+                    onChanged: (value) =>
+                        setState(() => selectedDepartmentId = value),
                     items: departmentMap.entries
                         .map((e) => DropdownMenuItem(
-                            value: e.key, child: Text(e.value)))
+                              value: e.key, // bolumId
+                              child: Text(e.value), // bolumAdı
+                            ))
                         .toList(),
+                    validator: (value) =>
+                        value == null ? 'Bölüm seçiniz' : null,
                   ),
-
                   const SizedBox(height: 10),
                   TextFormField(
-                      controller: passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Şifre')),
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'Şifre'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Şifre giriniz';
+                      }
+                      if (value.length < 6) {
+                        return 'Şifre en az 6 karakter olmalı';
+                      }
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 10),
                   TextFormField(
-                      controller: confirmPasswordController,
-                      obscureText: true,
-                      decoration:
-                          const InputDecoration(labelText: 'Şifre Tekrar')),
+                    controller: confirmPasswordController,
+                    obscureText: true,
+                    decoration:
+                        const InputDecoration(labelText: 'Şifre Tekrar'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Şifre tekrar giriniz';
+                      }
+                      if (value != passwordController.text) {
+                        return 'Şifreler eşleşmiyor';
+                      }
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 10),
-
                   if (errorText != null)
                     Text(errorText!, style: const TextStyle(color: Colors.red)),
-
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        if (_formKey.currentState!.validate() &&
-                            passwordController.text ==
-                                confirmPasswordController.text) {
+                        if (_formKey.currentState!.validate()) {
                           registerUser();
-                        } else {
-                          setState(() {
-                            errorText = "Şifreler eşleşmiyor";
-                          });
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.blue[600]),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.blue[600],
+                      ),
                       child: const Text('Kayıt Ol'),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextButton(
                     onPressed: () {
-                      Navigator.pop(context); // geri dön
+                      Navigator.pop(context); // Geri dön
                     },
                     child: const Text("Zaten hesabın var mı? Giriş Yap"),
                   ),

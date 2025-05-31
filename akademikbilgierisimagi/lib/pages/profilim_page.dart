@@ -4,6 +4,76 @@ import 'package:firebase_database/firebase_database.dart';
 import 'profil_duzenle_page.dart';
 import '../login_page.dart';
 
+// Takipçi Listesi Sayfası
+class TakipcilerPage extends StatelessWidget {
+  final String uid;
+  const TakipcilerPage({required this.uid, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final takipciRef =
+        FirebaseDatabase.instance.ref('kullanici_takipciler/$uid');
+    return Scaffold(
+      appBar: AppBar(title: const Text("Takipçiler")),
+      body: StreamBuilder(
+        stream: takipciRef.onValue,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return const Center(child: Text("Takipçi yok"));
+          }
+          final data =
+              Map<String, dynamic>.from(snapshot.data!.snapshot.value as Map);
+          final takipciUids = data.keys.toList();
+          return ListView.builder(
+            itemCount: takipciUids.length,
+            itemBuilder: (context, index) {
+              final takipciUid = takipciUids[index];
+              return ListTile(
+                title: Text(takipciUid),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Takip Edilenler Listesi Sayfası
+class TakipEdilenlerPage extends StatelessWidget {
+  final String uid;
+  const TakipEdilenlerPage({required this.uid, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final takipEdilenRef =
+        FirebaseDatabase.instance.ref('kullanici_takipler/$uid');
+    return Scaffold(
+      appBar: AppBar(title: const Text("Takip Edilenler")),
+      body: StreamBuilder(
+        stream: takipEdilenRef.onValue,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return const Center(child: Text("Takip edilen yok"));
+          }
+          final data =
+              Map<String, dynamic>.from(snapshot.data!.snapshot.value as Map);
+          final takipEdilenUids = data.keys.toList();
+          return ListView.builder(
+            itemCount: takipEdilenUids.length,
+            itemBuilder: (context, index) {
+              final takipEdilenUid = takipEdilenUids[index];
+              return ListTile(
+                title: Text(takipEdilenUid),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
 class ProfilimPage extends StatefulWidget {
   const ProfilimPage({super.key});
 
@@ -12,11 +82,12 @@ class ProfilimPage extends StatefulWidget {
 }
 
 class _ProfilimPageState extends State<ProfilimPage> {
-  final user = FirebaseAuth.instance.currentUser;
+  final user = FirebaseAuth.instance.currentUser!;
   late DatabaseReference kullaniciRef;
   late DatabaseReference universiteRef;
   late DatabaseReference paylasimRef;
   late DatabaseReference takipciRef;
+  late DatabaseReference takiplerRef;
 
   Map<String, dynamic>? userData;
   String? universiteAdi;
@@ -24,20 +95,30 @@ class _ProfilimPageState extends State<ProfilimPage> {
 
   int gonderiSayisi = 0;
   int takipciSayisi = 0;
+  int takipEdilenSayisi = 0;
+
+  bool isFollowing = false;
 
   @override
   void initState() {
     super.initState();
-    final uid = user!.uid;
 
-    kullaniciRef = FirebaseDatabase.instance.ref().child('kullanicilar/$uid');
+    kullaniciRef =
+        FirebaseDatabase.instance.ref().child('kullanicilar/${user.uid}');
     universiteRef = FirebaseDatabase.instance.ref().child('universiteler');
-    paylasimRef =
-        FirebaseDatabase.instance.ref().child('kullanici_paylasimlari/$uid');
-    takipciRef =
-        FirebaseDatabase.instance.ref().child('kullanici_takipciler/$uid');
+    paylasimRef = FirebaseDatabase.instance
+        .ref()
+        .child('kullanici_paylasimlari/${user.uid}');
+    takipciRef = FirebaseDatabase.instance
+        .ref()
+        .child('kullanici_takipciler/${user.uid}');
+    takiplerRef =
+        FirebaseDatabase.instance.ref().child('kullanici_takipler/${user.uid}');
 
     _loadUserData();
+    _listenTakipciSayisi();
+    _listenTakipEdilenSayisi();
+    _checkIfFollowing();
   }
 
   Future<void> _loadUserData() async {
@@ -45,22 +126,20 @@ class _ProfilimPageState extends State<ProfilimPage> {
     if (!snapshot.exists) return;
 
     final data = Map<String, dynamic>.from(snapshot.value as Map);
-    final String? uniId = data['universite'];
-    final String? bolumId = data['bolum'];
+    final String? uniId = data['universiteId'] ?? data['universite'];
+    final String? bolumId = data['bolumId'] ?? data['bolum'];
 
     final uniSnapshot = await universiteRef.child(uniId ?? '').get();
     final bolumSnapshot =
         await universiteRef.child('$uniId/bolumler/$bolumId').get();
 
     final paylasimSnapshot = await paylasimRef.get();
-    final takipciSnapshot = await takipciRef.get();
 
     setState(() {
       userData = data;
       universiteAdi = uniSnapshot.child('name').value as String?;
       bolumAdi = bolumSnapshot.child('name').value as String?;
       gonderiSayisi = paylasimSnapshot.children.length;
-      takipciSayisi = takipciSnapshot.children.length;
     });
   }
 
@@ -83,6 +162,66 @@ class _ProfilimPageState extends State<ProfilimPage> {
     }
   }
 
+  void _checkIfFollowing() async {
+    final currentUserUid = FirebaseAuth.instance.currentUser!.uid;
+    if (currentUserUid == user.uid) {
+      setState(() {
+        isFollowing = false;
+      });
+      return;
+    }
+
+    final currentUserTakiplerRef = FirebaseDatabase.instance
+        .ref('kullanici_takipler/$currentUserUid/${user.uid}');
+    final snapshot = await currentUserTakiplerRef.get();
+    setState(() {
+      isFollowing = snapshot.exists;
+    });
+  }
+
+  void _toggleFollow() async {
+    final currentUserUid = FirebaseAuth.instance.currentUser!.uid;
+    final takipciRefForUser = FirebaseDatabase.instance
+        .ref('kullanici_takipciler/${user.uid}/$currentUserUid');
+    final takiplerRefForCurrentUser = FirebaseDatabase.instance
+        .ref('kullanici_takipler/$currentUserUid/${user.uid}');
+
+    if (isFollowing) {
+      // Takipten çık
+      await takipciRefForUser.remove();
+      await takiplerRefForCurrentUser.remove();
+    } else {
+      // Takip et
+      await takipciRefForUser.set(true);
+      await takiplerRefForCurrentUser.set(true);
+    }
+    setState(() {
+      isFollowing = !isFollowing;
+    });
+  }
+
+  void _listenTakipciSayisi() {
+    final takipciCountRef =
+        FirebaseDatabase.instance.ref('kullanici_takipciler/${user.uid}');
+    takipciCountRef.onValue.listen((event) {
+      final data = event.snapshot.value;
+      setState(() {
+        takipciSayisi = (data != null && data is Map) ? data.length : 0;
+      });
+    });
+  }
+
+  void _listenTakipEdilenSayisi() {
+    final takipEdilenCountRef =
+        FirebaseDatabase.instance.ref('kullanici_takipler/${user.uid}');
+    takipEdilenCountRef.onValue.listen((event) {
+      final data = event.snapshot.value;
+      setState(() {
+        takipEdilenSayisi = (data != null && data is Map) ? data.length : 0;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (userData == null) {
@@ -90,6 +229,9 @@ class _ProfilimPageState extends State<ProfilimPage> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+
+    final currentUserUid = FirebaseAuth.instance.currentUser!.uid;
+    final isOwnProfile = currentUserUid == user.uid;
 
     return Scaffold(
       appBar: AppBar(
@@ -132,8 +274,36 @@ class _ProfilimPageState extends State<ProfilimPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildStat("Gönderi", gonderiSayisi),
-                    const SizedBox(width: 40),
-                    _buildStat("Takipçi", takipciSayisi),
+                    const SizedBox(width: 30),
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => TakipcilerPage(uid: user.uid)),
+                        );
+                      },
+                      child: _buildStat("Takipçi", takipciSayisi),
+                    ),
+                    const SizedBox(width: 30),
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  TakipEdilenlerPage(uid: user.uid)),
+                        );
+                      },
+                      child: _buildStat("Takip Edilen", takipEdilenSayisi),
+                    ),
+                    if (!isOwnProfile) ...[
+                      const SizedBox(width: 30),
+                      ElevatedButton(
+                        onPressed: _toggleFollow,
+                        child: Text(isFollowing ? "Takipten Çık" : "Takip Et"),
+                      )
+                    ]
                   ],
                 ),
                 const Divider(height: 32, thickness: 1),
@@ -164,11 +334,10 @@ class _ProfilimPageState extends State<ProfilimPage> {
                   icon: const Icon(Icons.edit),
                   label: const Text("Profili Düzenle"),
                 ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
+                const SizedBox(height: 12),
+                ElevatedButton(
                   onPressed: _sifreSifirla,
-                  icon: const Icon(Icons.lock_reset),
-                  label: const Text("Şifreyi Sıfırla"),
+                  child: const Text("Şifre Sıfırla"),
                 ),
               ],
             ),
@@ -178,14 +347,18 @@ class _ProfilimPageState extends State<ProfilimPage> {
     );
   }
 
-  Widget _buildStat(String label, int value) {
+  // Bu fonksiyon stat widget'larını döndürür
+  Widget _buildStat(String baslik, int sayi) {
     return Column(
       children: [
         Text(
-          "$value",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          sayi.toString(),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
-        Text(label, style: const TextStyle(color: Colors.grey)),
+        Text(
+          baslik,
+          style: const TextStyle(color: Colors.grey),
+        ),
       ],
     );
   }
