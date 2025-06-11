@@ -69,18 +69,26 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
           });
         }
 
-        // Gönderiler (gonderiler kullanıcıId altında ise ona göre yol düzelt)
-        final gonderiSnapshot =
-            await FirebaseDatabase.instance.ref('gonderiler/$takipId').get();
+        // Gönderiler
+        final gonderiSnapshot = await FirebaseDatabase.instance
+            .ref('kullanici_paylasimlari/$takipId')
+            .get();
         List<Map<String, dynamic>> gonderiler = [];
         if (gonderiSnapshot.exists) {
-          Map<dynamic, dynamic> gonderiData =
+          Map<dynamic, dynamic> gonderiMap =
               gonderiSnapshot.value as Map<dynamic, dynamic>;
-          gonderiData.forEach((key, value) {
-            Map<String, dynamic> g = Map<String, dynamic>.from(value);
-            g['id'] = key;
-            gonderiler.add(g);
-          });
+
+          for (var postId in gonderiMap.keys) {
+            final postSnapshot = await FirebaseDatabase.instance
+                .ref('paylasimlar/$postId')
+                .get();
+            if (postSnapshot.exists) {
+              Map<String, dynamic> post =
+                  Map<String, dynamic>.from(postSnapshot.value as Map);
+              post['id'] = postId;
+              gonderiler.add(post);
+            }
+          }
         }
 
         kullaniciMap['kutuphaneler'] = kutuphaneler;
@@ -96,6 +104,18 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
     });
   }
 
+  Future<void> _toggleBegeni(String postId, bool begendiMi) async {
+    final currentUserId = user!.uid;
+    final begeniRef = FirebaseDatabase.instance.ref('begeni/$postId');
+
+    if (begendiMi) {
+      await begeniRef.child(currentUserId).remove();
+    } else {
+      await begeniRef.child(currentUserId).set(true);
+    }
+    setState(() {});
+  }
+
   Widget _kutuphaneCard(Map<String, dynamic> kutuphane) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -108,13 +128,59 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
   }
 
   Widget _gonderiCard(Map<String, dynamic> gonderi) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      child: ListTile(
-        leading: const Icon(Icons.post_add, color: Colors.green),
-        title: Text(gonderi['baslik'] ?? 'Başlıksız Gönderi'),
-        subtitle: Text(gonderi['icerik'] ?? ''),
-      ),
+    final currentUserId = user!.uid;
+    final postId = gonderi['id'];
+
+    return FutureBuilder<DataSnapshot>(
+      future: FirebaseDatabase.instance.ref('begeni/$postId').get(),
+      builder: (context, snapshot) {
+        bool begendiMi = false;
+        int begeniSayisi = 0;
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          Map<dynamic, dynamic> begeniMap =
+              snapshot.data!.value as Map<dynamic, dynamic>;
+          begeniSayisi = begeniMap.length;
+          begendiMi = begeniMap.containsKey(currentUserId);
+        }
+
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          child: ListTile(
+            leading: const Icon(Icons.post_add, color: Colors.green),
+            title: Text(gonderi['content'] ?? 'Başlıksız Gönderi'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        begendiMi ? Icons.favorite : Icons.favorite_border,
+                        color: begendiMi ? Colors.red : Colors.grey,
+                      ),
+                      onPressed: () => _toggleBegeni(postId, begendiMi),
+                    ),
+                    Text('$begeniSayisi beğeni'),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text("Yorum özelliği yakında")),
+                        );
+                      },
+                      icon: const Icon(Icons.comment, size: 18),
+                      label: const Text("Yorum yap"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -145,6 +211,9 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
         itemBuilder: (context, index) {
           final kullanici = takipEdilenKullanicilar[index];
 
+          final kutuphaneler = (kullanici['kutuphaneler'] as List?) ?? [];
+          final gonderiler = (kullanici['gonderiler'] as List?) ?? [];
+
           return Card(
             elevation: 3,
             margin: const EdgeInsets.symmetric(vertical: 8),
@@ -174,7 +243,7 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
                   const SizedBox(height: 8),
 
                   // Kütüphaneler başlığı ve listesi
-                  if ((kullanici['kutuphaneler'] as List).isNotEmpty) ...[
+                  if (kutuphaneler.isNotEmpty) ...[
                     const Text(
                       'Kütüphaneler:',
                       style: TextStyle(
@@ -183,14 +252,12 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
                           color: Colors.blueAccent),
                     ),
                     const SizedBox(height: 4),
-                    ...((kullanici['kutuphaneler'] as List)
-                        .map((k) => _kutuphaneCard(k))
-                        .toList()),
+                    ...kutuphaneler.map((k) => _kutuphaneCard(k)).toList(),
                     const SizedBox(height: 8),
                   ],
 
                   // Gönderiler başlığı ve listesi
-                  if ((kullanici['gonderiler'] as List).isNotEmpty) ...[
+                  if (gonderiler.isNotEmpty) ...[
                     const Text(
                       'Gönderiler:',
                       style: TextStyle(
@@ -199,14 +266,11 @@ class _AnasayfaPageState extends State<AnasayfaPage> {
                           color: Colors.green),
                     ),
                     const SizedBox(height: 4),
-                    ...((kullanici['gonderiler'] as List)
-                        .map((g) => _gonderiCard(g))
-                        .toList()),
+                    ...gonderiler.map((g) => _gonderiCard(g)).toList(),
                   ],
 
                   // Kütüphane ve gönderi yoksa uyarı
-                  if ((kullanici['kutuphaneler'] as List).isEmpty &&
-                      (kullanici['gonderiler'] as List).isEmpty) ...[
+                  if (kutuphaneler.isEmpty && gonderiler.isEmpty) ...[
                     const Text('Henüz paylaşım yok.'),
                   ],
                 ],

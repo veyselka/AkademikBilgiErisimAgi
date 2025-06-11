@@ -12,7 +12,6 @@ class ProfilDuzenlePage extends StatefulWidget {
 class _ProfilDuzenlePageState extends State<ProfilDuzenlePage> {
   final user = FirebaseAuth.instance.currentUser;
   late DatabaseReference kullaniciRef;
-  late DatabaseReference universiteRef;
 
   final _isimController = TextEditingController();
   final _bioController = TextEditingController();
@@ -20,104 +19,39 @@ class _ProfilDuzenlePageState extends State<ProfilDuzenlePage> {
 
   String? email;
 
-  String? seciliUniversiteId;
-  String? seciliBolumId;
-
-  String? universiteAdi;
-  String? bolumAdi;
-
-  Map<String, dynamic> universitelerMap = {};
-  Map<String, dynamic> bolumlerMap = {};
-
   @override
   void initState() {
     super.initState();
     kullaniciRef =
         FirebaseDatabase.instance.ref().child('kullanicilar/${user!.uid}');
-    universiteRef = FirebaseDatabase.instance.ref().child('universiteler');
-    _loadUniversiteler();
     _loadUserData();
-  }
-
-  Future<void> _loadUniversiteler() async {
-    final snapshot = await universiteRef.get();
-    if (!snapshot.exists) return;
-
-    final data = Map<String, dynamic>.from(snapshot.value as Map);
-    setState(() {
-      universitelerMap = data;
-    });
   }
 
   Future<void> _loadUserData() async {
     final snapshot = await kullaniciRef.get();
     if (!snapshot.exists) return;
 
-    final data = Map<String, dynamic>.from(snapshot.value as Map);
+    final dataRaw = snapshot.value;
+    if (dataRaw == null) return;
 
-    final String? uniId = data['universiteId']?.toString();
-    final String? bolumId = data['bolumId']?.toString();
+    final data = Map<String, dynamic>.from(
+      (dataRaw as Map).map((key, value) => MapEntry(key.toString(), value)),
+    );
 
     setState(() {
       _isimController.text = data['isim']?.toString() ?? '';
       _bioController.text = data['bio']?.toString() ?? '';
       _avatarUrlController.text = data['avatarUrl']?.toString() ?? '';
       email = data['email']?.toString();
-      seciliUniversiteId = uniId;
-      seciliBolumId = bolumId;
-    });
-
-    if (seciliUniversiteId != null) {
-      await _loadBolumler(seciliUniversiteId!);
-    }
-
-    if (universitelerMap.isNotEmpty) {
-      setState(() {
-        universiteAdi =
-            universitelerMap[seciliUniversiteId]?['name']?.toString() ?? '';
-        bolumAdi = bolumlerMap[seciliBolumId]?['name']?.toString() ?? '';
-      });
-    }
-  }
-
-  Future<void> _loadBolumler(String universiteId) async {
-    final snapshot = await universiteRef.child('$universiteId/bolumler').get();
-    if (!snapshot.exists) {
-      setState(() {
-        bolumlerMap = {};
-        seciliBolumId = null;
-        bolumAdi = null;
-      });
-      return;
-    }
-
-    final data = Map<String, dynamic>.from(snapshot.value as Map);
-    setState(() {
-      bolumlerMap = data;
-
-      if (!bolumlerMap.containsKey(seciliBolumId)) {
-        seciliBolumId = null;
-        bolumAdi = null;
-      } else {
-        bolumAdi = bolumlerMap[seciliBolumId]?['name']?.toString();
-      }
     });
   }
 
   Future<void> _saveChanges() async {
-    if (seciliUniversiteId == null || seciliBolumId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lütfen üniversite ve bölüm seçiniz.")),
-      );
-      return;
-    }
-
     await kullaniciRef.update({
       'isim': _isimController.text.trim(),
       'bio': _bioController.text.trim(),
       'avatarUrl': _avatarUrlController.text.trim(),
-      'universiteId': seciliUniversiteId,
-      'bolumId': seciliBolumId,
+      // Üniversite ve bölüm bilgileri güncellenmiyor
     });
 
     if (mounted) {
@@ -128,7 +62,6 @@ class _ProfilDuzenlePageState extends State<ProfilDuzenlePage> {
     }
   }
 
-  // Profil foto URL geçerliyse önizleme göster
   Widget _buildAvatarPreview() {
     final url = _avatarUrlController.text.trim();
     if (url.isEmpty) return const SizedBox.shrink();
@@ -218,54 +151,6 @@ class _ProfilDuzenlePageState extends State<ProfilDuzenlePage> {
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: Colors.grey[700]),
               ),
-            const SizedBox(height: 25),
-            // Üniversite Dropdown
-            universitelerMap.isNotEmpty
-                ? DropdownButtonFormField<String>(
-                    decoration: _inputDecoration("Üniversite"),
-                    value: universitelerMap.containsKey(seciliUniversiteId)
-                        ? seciliUniversiteId
-                        : null,
-                    items: universitelerMap.entries
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(e.value['name']?.toString() ?? ''),
-                            ))
-                        .toList(),
-                    onChanged: (value) async {
-                      if (value == null) return;
-                      setState(() {
-                        seciliUniversiteId = value;
-                        seciliBolumId = null;
-                        bolumlerMap = {};
-                        bolumAdi = null;
-                      });
-                      await _loadBolumler(value);
-                    },
-                  )
-                : const Text("Üniversite verisi yok"),
-            const SizedBox(height: 25),
-            // Bölüm Dropdown
-            bolumlerMap.isNotEmpty
-                ? DropdownButtonFormField<String>(
-                    decoration: _inputDecoration("Bölüm"),
-                    value: bolumlerMap.containsKey(seciliBolumId)
-                        ? seciliBolumId
-                        : null,
-                    items: bolumlerMap.entries
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(e.value['name']?.toString() ?? ''),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        seciliBolumId = value;
-                        bolumAdi = bolumlerMap[value]?['name']?.toString();
-                      });
-                    },
-                  )
-                : const Text("Bölüm verisi yok"),
             const SizedBox(height: 35),
             SizedBox(
               height: 50,

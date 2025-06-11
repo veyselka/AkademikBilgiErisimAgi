@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class AramaPage extends StatefulWidget {
@@ -10,17 +11,17 @@ class AramaPage extends StatefulWidget {
 
 class _AramaPageState extends State<AramaPage> {
   final TextEditingController _searchController = TextEditingController();
-
-  List<Map<String, dynamic>> kullanicilar = [];
-  List<Map<String, dynamic>> kutuphaneler = [];
-
+  List<Map<String, dynamic>> bulunanKullanicilar = [];
+  Map<String, String> takipDurumlari = {};
   bool _isLoading = false;
 
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   Future<void> _aramaYap(String query) async {
-    if (query.trim().isEmpty) {
+    if (query.isEmpty) {
       setState(() {
-        kullanicilar = [];
-        kutuphaneler = [];
+        bulunanKullanicilar = [];
+        takipDurumlari = {};
       });
       return;
     }
@@ -30,85 +31,115 @@ class _AramaPageState extends State<AramaPage> {
     });
 
     final dbRef = FirebaseDatabase.instance.ref();
+    final kullaniciRef = dbRef.child('kullanicilar');
+    final takipRef = dbRef.child('kullanici_takipleri');
+    final currentUserId = _auth.currentUser?.uid;
 
-    // Kullanıcı araması
-    final kullaniciSnapshot = await dbRef
-        .child('kullanicilar')
-        .orderByChild('isim')
-        .startAt(query)
-        .endAt(query + '\uf8ff')
-        .get();
+    try {
+      final snapshot = await kullaniciRef.get();
+      if (snapshot.exists) {
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
 
-    List<Map<String, dynamic>> bulunanKullanicilar = [];
-    if (kullaniciSnapshot.exists) {
-      final data = kullaniciSnapshot.value as Map<dynamic, dynamic>;
-      data.forEach((key, value) {
-        final kullanici = Map<String, dynamic>.from(value);
-        kullanici['id'] = key;
-        bulunanKullanicilar.add(kullanici);
-      });
-    }
+        final filtrelenmis = data.entries.where((entry) {
+          final user = Map<String, dynamic>.from(entry.value);
+          final isim = (user['isim'] ?? '').toString().toLowerCase();
+          return isim.contains(query.toLowerCase());
+        }).map((entry) {
+          final user = Map<String, dynamic>.from(entry.value);
+          user['id'] = entry.key;
+          return user;
+        }).toList();
 
-    // Kütüphane araması (basit şekilde)
-    List<Map<String, dynamic>> bulunanKutuphaneler = [];
-    final kullaniciSnapshotForKutup = await dbRef.child('kullanicilar').get();
-    if (kullaniciSnapshotForKutup.exists) {
-      final tumKullanicilar =
-          kullaniciSnapshotForKutup.value as Map<dynamic, dynamic>;
-      for (var userKey in tumKullanicilar.keys) {
-        final kullaniciData = tumKullanicilar[userKey] as Map<dynamic, dynamic>;
-        if (kullaniciData.containsKey('kutuphaneler')) {
-          final kutuphaneData =
-              kullaniciData['kutuphaneler'] as Map<dynamic, dynamic>;
-          kutuphaneData.forEach((kutuphaneKey, kutuphaneValue) {
-            final kutuphaneMap = Map<String, dynamic>.from(kutuphaneValue);
-            kutuphaneMap['id'] = kutuphaneKey;
-            kutuphaneMap['kullaniciId'] = userKey;
-            final isim = (kutuphaneMap['isim'] ?? '').toString().toLowerCase();
-            if (isim.contains(query.toLowerCase())) {
-              bulunanKutuphaneler.add(kutuphaneMap);
-            }
-          });
+        Map<String, dynamic> takipEdilenler = {};
+        if (currentUserId != null) {
+          final takipSnapshot = await takipRef.child(currentUserId).get();
+          if (takipSnapshot.exists) {
+            takipEdilenler =
+                Map<String, dynamic>.from(takipSnapshot.value as Map);
+          }
         }
+
+        Map<String, String> durumlar = {};
+        for (var kullanici in filtrelenmis) {
+          final id = kullanici['id'];
+          if (id == currentUserId) {
+            durumlar[id] = 'kendisi';
+          } else if (takipEdilenler.containsKey(id)) {
+            durumlar[id] = 'takipte';
+          } else {
+            durumlar[id] = 'takip_et';
+          }
+        }
+
+        setState(() {
+          bulunanKullanicilar = filtrelenmis;
+          takipDurumlari = durumlar;
+        });
       }
+    } catch (e) {
+      debugPrint("Hata: $e");
     }
 
     setState(() {
-      kullanicilar = bulunanKullanicilar;
-      kutuphaneler = bulunanKutuphaneler;
       _isLoading = false;
     });
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  Future<void> _takipEt(String takipEdilecekId) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final dbRef = FirebaseDatabase.instance.ref();
+
+    try {
+      // 1. takip_edilenler/{currentUserId}/{hedefUserId}
+      await dbRef
+          .child('takip_edilenler/$currentUserId/$takipEdilecekId')
+          .set(true);
+
+      // 2. kullanici_takipciler/{hedefUserId}/{currentUserId}
+      await dbRef
+          .child('kullanici_takipciler/$takipEdilecekId/$currentUserId')
+          .set(true);
+
+      setState(() {
+        takipDurumlari[takipEdilecekId] = 'takipte';
+      });
+    } catch (e) {
+      debugPrint("Takip etme hatası: $e");
+    }
   }
 
-  Widget _buildListItem(
-      {required String title,
-      String? subtitle,
-      String? avatarUrl,
-      required VoidCallback onTap}) {
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: avatarUrl != null && avatarUrl.isNotEmpty
-            ? CircleAvatar(backgroundImage: NetworkImage(avatarUrl))
-            : CircleAvatar(
-                backgroundColor: Colors.blue.shade300,
-                child: Text(
-                  title.isNotEmpty ? title[0].toUpperCase() : '?',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: subtitle != null ? Text(subtitle) : null,
-        trailing: const Icon(Icons.arrow_forward_ios, size: 18),
-        onTap: onTap,
+  Future<void> _takipBirak(String takipEdilenId) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final dbRef = FirebaseDatabase.instance.ref();
+
+    try {
+      // 1. takip_edilenler/{currentUserId}/{hedefUserId}
+      await dbRef
+          .child('takip_edilenler/$currentUserId/$takipEdilenId')
+          .remove();
+
+      // 2. kullanici_takipciler/{hedefUserId}/{currentUserId}
+      await dbRef
+          .child('kullanici_takipciler/$takipEdilenId/$currentUserId')
+          .remove();
+
+      setState(() {
+        takipDurumlari[takipEdilenId] = 'takip_et';
+      });
+    } catch (e) {
+      debugPrint("Takipten çıkma hatası: $e");
+    }
+  }
+
+  void _profilSayfasinaGit(Map<String, dynamic> kullanici) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => KullaniciProfilSayfasi(kullanici: kullanici),
       ),
     );
   }
@@ -117,93 +148,138 @@ class _AramaPageState extends State<AramaPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Arama'),
-        centerTitle: true,
+        title: const Text("Kullanıcı Ara"),
         backgroundColor: Colors.deepPurple,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Kullanıcı veya kütüphane ara...',
+                hintText: "İsim ile ara...",
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _aramaYap('');
-                        },
-                      )
-                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onChanged: (val) {
-                _aramaYap(val);
-              },
+              onChanged: _aramaYap,
             ),
             const SizedBox(height: 12),
-            if (_isLoading)
-              const LinearProgressIndicator(
-                color: Colors.deepPurple,
-                minHeight: 3,
-              ),
+            if (_isLoading) const LinearProgressIndicator(minHeight: 3),
             if (!_isLoading)
               Expanded(
-                child: kullanicilar.isEmpty &&
-                        kutuphaneler.isEmpty &&
-                        _searchController.text.isNotEmpty
-                    ? Center(
-                        child: Text(
-                          'Sonuç bulunamadı :(',
-                          style: TextStyle(
-                              color: Colors.grey.shade600, fontSize: 16),
-                        ),
-                      )
-                    : ListView(
-                        children: [
-                          if (kullanicilar.isNotEmpty)
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 6, left: 6),
-                              child: Text(
-                                'Kullanıcılar',
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
+                child: bulunanKullanicilar.isEmpty
+                    ? const Center(child: Text("Sonuç bulunamadı."))
+                    : ListView.builder(
+                        itemCount: bulunanKullanicilar.length,
+                        itemBuilder: (context, index) {
+                          final kullanici = bulunanKullanicilar[index];
+                          final kullaniciId = kullanici['id'];
+                          final durum =
+                              takipDurumlari[kullaniciId] ?? 'takip_et';
+
+                          return Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          ...kullanicilar.map((k) => _buildListItem(
-                                title: k['isim'],
-                                subtitle: k['email'],
-                                avatarUrl: k['avatarUrl'] ?? '',
-                                onTap: () {
-                                  // TODO: Profil sayfasına git
-                                },
-                              )),
-                          if (kutuphaneler.isNotEmpty)
-                            const Padding(
-                              padding:
-                                  EdgeInsets.only(top: 12, bottom: 6, left: 6),
-                              child: Text(
-                                'Kütüphaneler',
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: kullanici['avatarUrl'] != null
+                                    ? NetworkImage(kullanici['avatarUrl'])
+                                    : null,
+                                child: kullanici['avatarUrl'] == null
+                                    ? const Icon(Icons.person)
+                                    : null,
                               ),
+                              title: Text(kullanici['isim'] ?? ''),
+                              subtitle: Text(kullanici['email'] ?? ''),
+                              trailing: durum == 'kendisi'
+                                  ? null
+                                  : durum == 'takipte'
+                                      ? TextButton(
+                                          onPressed: () =>
+                                              _takipBirak(kullaniciId),
+                                          child: const Text('Takibi Bırak'),
+                                        )
+                                      : TextButton(
+                                          onPressed: () =>
+                                              _takipEt(kullaniciId),
+                                          child: const Text('Takip Et'),
+                                        ),
+                              onTap: () => _profilSayfasinaGit(kullanici),
                             ),
-                          ...kutuphaneler.map((k) => _buildListItem(
-                                title: k['isim'],
-                                subtitle: 'Sahibi: ${k['kullaniciId']}',
-                                onTap: () {
-                                  // TODO: Kütüphane detayına git
-                                },
-                              )),
-                        ],
+                          );
+                        },
                       ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class KullaniciProfilSayfasi extends StatelessWidget {
+  final Map<String, dynamic> kullanici;
+  const KullaniciProfilSayfasi({super.key, required this.kullanici});
+
+  Future<String> _getUniversiteAdi(String uniId) async {
+    final ref = FirebaseDatabase.instance.ref('universiteler/$uniId/name');
+    final snapshot = await ref.get();
+    return snapshot.exists ? snapshot.value.toString() : 'Bilinmiyor';
+  }
+
+  Future<String> _getBolumAdi(String uniId, String bolumId) async {
+    final ref = FirebaseDatabase.instance
+        .ref('universiteler/$uniId/bolumler/$bolumId/name');
+    final snapshot = await ref.get();
+    return snapshot.exists ? snapshot.value.toString() : 'Bilinmiyor';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uniId = kullanici['universiteId'] ?? '';
+    final bolumId = kullanici['bolumId'] ?? '';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(kullanici['isim'] ?? 'Profil'),
+        backgroundColor: Colors.deepPurple,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 60,
+              backgroundImage: kullanici['avatarUrl'] != null
+                  ? NetworkImage(kullanici['avatarUrl'])
+                  : null,
+              child: kullanici['avatarUrl'] == null
+                  ? const Icon(Icons.person, size: 60)
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            Text(kullanici['isim'] ?? '', style: const TextStyle(fontSize: 22)),
+            Text(kullanici['email'] ?? '',
+                style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            FutureBuilder<String>(
+              future: _getUniversiteAdi(uniId),
+              builder: (context, snapshot) => Text(
+                "Üniversite: ${snapshot.data ?? ''}",
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            FutureBuilder<String>(
+              future: _getBolumAdi(uniId, bolumId),
+              builder: (context, snapshot) => Text(
+                "Bölüm: ${snapshot.data ?? ''}",
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
           ],
         ),
       ),
