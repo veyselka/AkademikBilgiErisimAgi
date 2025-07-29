@@ -21,9 +21,8 @@ class _RegisterPageState extends State<RegisterPage> {
   String? selectedUniversityId;
   String? selectedDepartmentId;
 
-  Map<String, String> universityMap = {}; // { "100": "İstanbul Üniversitesi" }
-  Map<String, String> departmentMap =
-      {}; // { "400": "Bilgisayar Mühendisliği" }
+  Map<String, String> universityMap = {};
+  Map<String, String> departmentMap = {};
 
   String? errorText;
 
@@ -39,18 +38,27 @@ class _RegisterPageState extends State<RegisterPage> {
           await FirebaseDatabase.instance.ref('universiteler').get();
       if (snapshot.exists) {
         final data = snapshot.value;
+
+        Map<String, String> fetchedUniversities = {};
+
         if (data is Map) {
-          Map<String, String> fetchedUniversities = {};
           data.forEach((key, val) {
             if (val is Map && val['name'] != null) {
-              fetchedUniversities[key] = val['name'].toString();
+              fetchedUniversities[key.toString()] = val['name'].toString();
             }
           });
-
-          setState(() {
-            universityMap = fetchedUniversities;
-          });
+        } else if (data is List) {
+          for (int i = 0; i < data.length; i++) {
+            final val = data[i];
+            if (val is Map && val['name'] != null) {
+              fetchedUniversities[i.toString()] = val['name'].toString();
+            }
+          }
         }
+
+        setState(() {
+          universityMap = fetchedUniversities;
+        });
       }
     } catch (e) {
       debugPrint('fetchUniversities hatası: $e');
@@ -65,25 +73,27 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (snapshot.exists) {
         final data = snapshot.value;
+        Map<String, String> fetchedDepartments = {};
 
         if (data is Map) {
-          Map<String, String> fetchedDepartments = {};
           data.forEach((key, val) {
             if (val is Map && val['name'] != null) {
-              fetchedDepartments[key] = val['name'].toString();
+              fetchedDepartments[key.toString()] = val['name'].toString();
             }
           });
-
-          setState(() {
-            departmentMap = fetchedDepartments;
-            selectedDepartmentId = null;
-          });
-        } else {
-          setState(() {
-            departmentMap = {};
-            selectedDepartmentId = null;
-          });
+        } else if (data is List) {
+          for (int i = 0; i < data.length; i++) {
+            final val = data[i];
+            if (val is Map && val['name'] != null) {
+              fetchedDepartments[i.toString()] = val['name'].toString();
+            }
+          }
         }
+
+        setState(() {
+          departmentMap = fetchedDepartments;
+          selectedDepartmentId = null;
+        });
       } else {
         setState(() {
           departmentMap = {};
@@ -124,8 +134,8 @@ class _RegisterPageState extends State<RegisterPage> {
       await FirebaseDatabase.instance.ref('kullanicilar/$uid').set({
         'isim': nameController.text.trim(),
         'email': emailController.text.trim(),
-        'universite': selectedUniversityId,
-        'bolum': selectedDepartmentId,
+        'universiteId': selectedUniversityId,
+        'bolumId': selectedDepartmentId,
         'avatarUrl': '',
         'bio': '',
         'ayarlar': {
@@ -215,8 +225,8 @@ class _RegisterPageState extends State<RegisterPage> {
                     },
                     items: universityMap.entries
                         .map((e) => DropdownMenuItem(
-                              value: e.key, // üniversiteId
-                              child: Text(e.value), // üniversiteAdı
+                              value: e.key,
+                              child: Text(e.value),
                             ))
                         .toList(),
                     validator: (value) =>
@@ -231,8 +241,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         setState(() => selectedDepartmentId = value),
                     items: departmentMap.entries
                         .map((e) => DropdownMenuItem(
-                              value: e.key, // bolumId
-                              child: Text(e.value), // bolumAdı
+                              value: e.key,
+                              child: Text(e.value),
                             ))
                         .toList(),
                     validator: (value) =>
@@ -291,7 +301,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 10),
                   TextButton(
                     onPressed: () {
-                      Navigator.pop(context); // Geri dön
+                      Navigator.pop(context);
                     },
                     child: const Text("Zaten hesabın var mı? Giriş Yap"),
                   ),
